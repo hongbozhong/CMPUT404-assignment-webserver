@@ -1,5 +1,6 @@
 #  coding: utf-8 
 import socketserver
+import os
 
 # Copyright 2013 Abram Hindle, Eddie Antonio Santos
 # 
@@ -30,9 +31,47 @@ import socketserver
 class MyWebServer(socketserver.BaseRequestHandler):
     
     def handle(self):
-        self.data = self.request.recv(1024).strip()
-        print ("Got a request of: %s\n" % self.data)
-        self.request.sendall(bytearray("OK",'utf-8'))
+        conn = self.request
+        data = conn.recv(1024).decode('utf-8')
+
+        string_list = data.split(' ')     
+        method = string_list[0]
+        filepath = string_list[1].split('?')[0] 
+        filepath.strip('/')  
+        filepath = os.path.join("./www/", filepath.lstrip('/'))
+        redirected = False  
+        if os.path.exists(filepath.strip('/')+'/index.html'):
+            if not filepath.endswith('/'):
+                redirected = True
+            filepath += '/index.html'
+
+        if method == "GET":
+            try:
+                file = open(filepath,'rb') 
+                payload = file.read()
+                header = 'HTTP/1.1 200 OK\n'
+        
+                if(filepath.endswith(".css")):
+                    ftype = 'text/css'
+                else:
+                    ftype = 'text/html'
+
+                if redirected:
+                    header = 'HTTP/1.1 301 Moved Permanently\nContent-Type: %s\n\n' % (ftype, )
+                else:
+                    header = 'HTTP/1.1 200 OK\nContent-Type: %s\n\n'% (ftype, )
+                file.close()
+            
+            except Exception as e:
+                header = 'HTTP/1.1 404 Not Found\n\n'
+                payload = '<html><body><center><h3>Error 404: File not found</h3><p>Python HTTP Server</p></center></body></html>'.encode('utf-8')
+        else:
+            header = 'HTTP/1.1 405 Method Not Allowed\n\n'
+            payload = '<html><body><center><h3>Error 405 Method Not Allowed</h3><p>Python HTTP Server</p></center></body></html>'.encode('utf-8')
+        
+        message = header.encode('utf-8') + payload
+        print(message.decode())
+        conn.sendall(message)
 
 if __name__ == "__main__":
     HOST, PORT = "localhost", 8080
